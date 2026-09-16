@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CivFix — Prototype | Team civnova</title>
+<style>
+  :root {
+    color-scheme: dark;
+    /* CivFix brand tokens (civic navy + saffron) */
+    --bg:        #0d0d0d;
+    --surface-1: #1a1a19;
+    --surface-2: #232322;
+    --surface-3: #2c2c2a;
+    --brand:     #eb6834;      /* saffron-orange accent */
+    --brand-dim: #d95926;
+    --brand-soft: rgba(235,104,52,.14);
+    --blue:      #3987e5;      /* series-1 (validated, dark surface) */
+    --blue-soft: rgba(57,135,229,.14);
+    --ink:       #ffffff;
+    --ink-2:     #c3c2b7;
+    --muted:     #898781;
+    --hairline:  rgba(255,255,255,.10);
+    --grid:      #2c2c2a;
+    /* status palette (fixed, icon+label always) */
+    --good:      #0ca30c;
+    --warning:   #fab219;
+    --serious:   #ec835a;
+    --critical:  #d03b3b;
+    --good-soft: rgba(12,163,12,.15);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb { background:var(--surface-3); border-radius:4px; }
+
+  /* ---------- Shell ---------- */
+  .topbar {
+    display:flex; align-items:center; gap:20px;
+    padding:14px 28px; border-bottom:1px solid var(--hairline);
+    background:var(--surface-1); position:sticky; top:0; z-index:50;
+  }
+  .logo { display:flex; align-items:center; gap:10px; }
+  .logo-mark {
+    width:34px; height:34px; border-radius:9px;
+    background:linear-gradient(135deg, var(--brand), var(--brand-dim));
+    display:grid; place-items:center; flex-shrink:0;
+  }
+  .logo-mark svg { width:20px; height:20px; }
+  .logo h1 { font-size:19px; font-weight:800; letter-spacing:-.02em; }
+  .logo h1 span { color:var(--brand); }
+  .tagline { font-size:12px; color:var(--muted); border-left:1px solid var(--hairline); padding-left:16px; }
+  .role-switch { margin-left:auto; display:flex; gap:6px; background:var(--surface-2); padding:4px; border-radius:12px; border:1px solid var(--hairline); }
+  .role-btn {
+    display:flex; align-items:center; gap:8px;
+    padding:8px 16px; border-radius:9px; border:none;
+    background:transparent; color:var(--ink-2); font-size:13px; font-weight:600;
+    transition:all .18s;
+  }
+  .role-btn svg { width:15px; height:15px; }
+  .role-btn:hover { color:var(--ink); }
+  .role-btn.active { background:var(--brand); color:#fff; }
+  .demo-note { font-size:11px; color:var(--muted); max-width:280px; text-align:right; line-height:1.4; }
+
+  .stage { display:none; padding:32px 28px 60px; }
+  .stage.active { display:block; }
+
+  /* ---------- Toasts ---------- */
+  #toasts { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:200; display:flex; flex-direction:column; gap:8px; align-items:center; }
+  .toast {
+    background:var(--surface-2); border:1px solid var(--hairline);
+    padding:11px 18px; border-radius:12px; font-size:13px; font-weight:500;
+    display:flex; align-items:center; gap:9px; box-shadow:0 8px 30px rgba(0,0,0,.5);
+    animation:toastIn .25s ease; max-width:420px;
+  }
+  .toast .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .toast.out { animation:toastOut .3s ease forwards; }
+  @keyframes toastIn { from { opacity:0; transform:translateY(12px);} to {opacity:1; transform:none;} }
+  @keyframes toastOut { to { opacity:0; transform:translateY(8px);} }
+
+  /* ---------- Phone frame ---------- */
+  .phone-wrap { display:flex; justify-content:center; gap:56px; align-items:flex-start; flex-wrap:wrap; }
+  .phone {
+    width:375px; height:780px; background:#000; border-radius:44px; padding:12px;
+    box-shadow:0 0 0 2px #333, 0 24px 80px rgba(0,0,0,.6); position:sticky; top:96px; flex-shrink:0;
+  }
+  .screen {
+    width:100%; height:100%; background:var(--bg); border-radius:34px; overflow:hidden;
+    display:flex; flex-direction:column; position:relative;
+  }
+  .notch { position:absolute; top:10px; left:50%; transform:translateX(-50%); width:110px; height:26px; background:#000; border-radius:14px; z-index:20; }
+  .app-body { flex:1; overflow-y:auto; padding:56px 18px 24px; }
+  .app-body::-webkit-scrollbar { width:0; }
+
+  .app-header {
+    position:absolute; top:0; left:0; right:0; z-index:15;
+    padding:48px 18px 12px; background:linear-gradient(var(--bg) 70%, transparent);
+  }
+  .app-header h2 { font-size:20px; font-weight:800; letter-spacing:-.02em; }
+  .app-header .sub { font-size:12px; color:var(--muted); margin-top:2px; }
+
+  .flow-back {
+    position:absolute; top:48px; left:14px; z-index:18;
+    width:34px; height:34px; border-radius:50%; border:1px solid var(--hairline);
+    background:var(--surface-2); color:var(--ink); display:grid; place-items:center;
+  }
+  .flow-back svg { width:16px; height:16px; }
+
+  /* ---------- Cards & chips ---------- */
+  .card { background:var(--surface-1); border:1px solid var(--hairline); border-radius:16px; padding:16px; }
+  .chip {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    padding:4px 9px; border-radius:99px;
+  }
+  .chip svg { width:11px; height:11px; }
+  .chip.civic    { background:var(--brand-soft); color:var(--brand); }
+  .chip.house    { background:var(--blue-soft); color:var(--blue); }
+  .chip.good     { background:var(--good-soft); color:var(--good); }
+  .chip.warning  { background:rgba(250,178,25,.14); color:var(--warning); }
+  .chip.serious  { background:rgba(236,131,90,.14); color:var(--serious); }
+  .chip.critical { background:rgba(208,59,59,.16); color:#e66767; }
+  .chip.gray     { background:var(--surface-3); color:var(--ink-2); }
+
+  .btn {
+    width:100%; padding:14px; border-radius:14px; border:none;
+    font-size:14.5px; font-weight:700; transition:transform .12s, opacity .15s;
+  }
+  .btn:active { transform:scale(.97); }
+  .btn-primary { background:var(--brand); color:#fff; }
+  .btn-ghost { background:var(--surface-2); color:var(--ink); border:1px solid var(--hairline); }
+  .btn-blue { background:var(--blue); color:#fff; }
+  .btn[disabled] { opacity:.45; cursor:not-allowed; }
+
+  .section-label { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:20px 0 10px; }
+  .section-label:first-child { margin-top:0; }
+
+  /* ---------- Citizen: home ---------- */
+  .hero-greet { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .hero-greet .hi { font-size:20px; font-weight:800; }
+  .hero-greet .hi small { display:block; font-size:12px; font-weight:500; color:var(--muted); margin-top:2px; }
+  .avatar { width:40px; height:40px; border-radius:50%; background:var(--surface-3); display:grid; place-items:center; font-weight:700; color:var(--brand); border:1px solid var(--hairline); }
+  .points-pill { display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:var(--warning); background:rgba(250,178,25,.1); padding:7px 12px; border-radius:99px; margin-bottom:16px; width:fit-content; }
+  .points-pill svg { width:13px; height:13px; }
+
+  .stream-cards { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .stream-card {
+    border-radius:18px; padding:16px 14px; border:1px solid var(--hairline);
+    text-align:left; transition:transform .12s; position:relative; overflow:hidden;
+  }
+  .stream-card:active { transform:scale(.97); }
+  .stream-card.civic { background:linear-gradient(160deg, rgba(235,104,52,.2), var(--surface-1) 65%); }
+  .stream-card.house { background:linear-gradient(160deg, rgba(57,135,229,.2), var(--surface-1) 65%); }
+  .stream-card .ic { width:38px; height:38px; border-radius:12px; display:grid; place-items:center; margin-bottom:10px; }
+  .stream-card.civic .ic { background:var(--brand-soft); color:var(--brand); }
+  .stream-card.house .ic { background:var(--blue-soft); color:var(--blue); }
+  .stream-card .ic svg { width:20px; height:20px; }
+  .stream-card b { display:block; font-size:13.5px; margin-bottom:3px; }
+  .stream-card span { font-size:11px; color:var(--muted); line-height:1.35; display:block; }
+  .stream-card .free { position:absolute; top:12px; right:12px; }
+
+  .map-peek {
+    height:120px; border-radius:16px; border:1px solid var(--hairline); margin-top:14px;
+    background:
+      radial-gradient(circle at 70% 30%, rgba(235,104,52,.25), transparent 40%),
+      radial-gradient(circle at 25% 70%, rgba(250,178,25,.2), transparent 35%),
+      linear-gradient(var(--surface-2), var(--surface-2));
+    position:relative; overflow:hidden;
+  }
+  .map-peek::before {
+    content:""; position:absolute; inset:0;
+    background:
+      linear-gradient(90deg, transparent 48%, var(--surface-3) 48%, var(--surface-3) 52%, transparent 52%),
+      linear-gradient(0deg, transparent 30%, var(--surface-3) 30%, var(--surface-3) 34%, transparent 34%),
+      linear-gradient(35deg, transparent 60%, var(--surface-3) 60%, var(--surface-3) 63%, transparent 63%);
+    opacity:.7;
+  }
+  .map-pin { position:absolute; width:22px; height:22px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); border:2px solid #000; }
+  .map-pin::after { content:""; }
+  .map-peek .legend { position:absolute; bottom:8px; left:10px; font-size:10px; color:var(--muted); background:rgba(0,0,0,.55); padding:3px 8px; border-radius:6px; z-index:2; }
+
+  .ticket-row {
+    display:flex; gap:12px; align-items:center; padding:13px 0; border-bottom:1px solid var(--hairline);
+  }
+  .ticket-row:last-child { border-bottom:none; }
+  .ticket-thumb { width:52px; height:52px; border-radius:12px; flex-shrink:0; display:grid; place-items:center; }
+  .ticket-thumb svg { width:26px; height:26px; }
+  .ticket-row .t-info { flex:1; min-width:0; }
+  .ticket-row .t-info b { font-size:13.5px; display:block; }
+  .ticket-row .t-info span { font-size:11px; color:var(--muted); }
+
+  /* ---------- Simulated camera / photo ---------- */
+  .photo-frame {
+    height:200px; border-radius:18px; position:relative; overflow:hidden;
+    display:grid; place-items:center; border:1.5px dashed var(--surface-3);
+    background:var(--surface-1); transition:border-color .2s;
+  }
+  .photo-frame.captured { border-style:solid; border-color:transparent; }
+  .photo-frame .cam-hint { text-align:center; color:var(--muted); }
+  .photo-frame .cam-hint svg { width:34px; height:34px; margin-bottom:8px; }
+  .photo-frame .cam-hint span { font-size:12.5px; display:block; }
+  .photo-art { position:absolute; inset:0; }
+  .photo-meta {
+    position:absolute; bottom:10px; left:10px; right:10px; display:flex; gap:6px; flex-wrap:wrap; z-index:3;
+  }
+  .photo-meta .chip { backdrop-filter:blur(6px); }
+
+  /* art scenes */
+  .art { position:absolute; inset:0; }
+  .art-sky { position:absolute; inset:0; }
+  .art-road { position:absolute; left:0; right:0; bottom:0; }
+
+  /* ---------- Form controls ---------- */
+  .seg { display:flex; background:var(--surface-2); border-radius:12px; padding:4px; border:1px solid var(--hairline); }
+  .seg button {
+    flex:1; padding:9px; border-radius:9px; border:none; background:transparent;
+    color:var(--ink-2); font-size:12.5px; font-weight:600;
+  }
+  .seg button.on { background:var(--brand); color:#fff; }
+  .cat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .cat {
+    padding:12px 4px; border-radius:14px; border:1px solid var(--hairline);
+    background:var(--surface-1); text-align:center; transition:all .15s;
+  }
+  .cat svg { width:22px; height:22px; margin-bottom:5px; }
+  .cat span { display:block; font-size:10px; color:var(--ink-2); font-weight:600; }
+  .cat.on { border-color:var(--brand); background:var(--brand-soft); }
+  .cat.on span { color:var(--brand); }
+
+  .sev-slider { width:100%; -webkit-apperance:none; height:6px; border-radius:3px;
+    background:linear-gradient(90deg, var(--good), var(--warning) 50%, var(--critical)); outline:none; }
+  .sev-slider::-webkit-slider-thumb { -webkit-apperance:none; width:22px; height:22px; border-radius:50%; background:#fff; border:3px solid var(--brand); cursor:pointer; }
+
+  .field { background:var(--surface-1); border:1px solid var(--hairline); border-radius:14px; padding:12px 14px; font-size:13.5px; color:var(--ink-2); }
+  textarea.field { width:100%; resize:none; font-family:inherit; }
+
+  .gps-chip { display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--hairline); border-radius:12px; padding:11px 13px; font-size:12.5px; color:var(--ink-2); }
+  .gps-chip svg { width:15px; height:15px; color:var(--brand); flex-shrink:0; }
+  .gps-chip .pulse { width:7px; height:7px; border-radius:50%; background:var(--good); animation:pulse 1.6s infinite; margin-left:auto; flex-shrink:0; }
+  @keyframes pulse { 0%,100%{opacity:1; box-shadow:0 0 0 0 rgba(12,163,12,.5);} 50%{opacity:.6; box-shadow:0 0 0 5px rgba(12,163,12,0);} }
+
+  /* AI classification result */
+  .ai-card { border:1px solid rgba(57,135,229,.35); background:var(--blue-soft); border-radius:16px; padding:14px; }
+  .ai-card .ai-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .ai-card .ai-head svg { width:16px; height:16px; color:var(--blue); }
+  .ai-card .ai-head b { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--blue); }
+  .ai-rows { display:grid; gap:7px; }
+  .ai-row { display:flex; justify-content:space-between; font-size:12.5px; }
+  .ai-row span { color:var(--muted); }
+  .ai-row b { font-weight:700; }
+  .score-ring { position:relative; width:74px; height:74px; margin:0 auto; }
+  .score-ring svg { transform:rotate(-90deg); }
+  .score-ring .val { position:absolute; inset:0; display:grid; place-items:center; font-size:19px; font-weight:800; }
+
+  /* ticket timeline */
+  .timeline { display:flex; flex-direction:column; gap:0; }
+  .tl-step { display:flex; gap:12px; }
+  .tl-rail { display:flex; flex-direction:column; align-items:center; width:22px; flex-shrink:0; }
+  .tl-dot { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; flex-shrink:0; }
+  .tl-dot svg { width:11px; height:11px; }
+  .tl-dot.done { background:var(--good-soft); color:var(--good); }
+  .tl-dot.now  { background:var(--brand-soft); color:var(--brand); animation:pulse 1.8s infinite; }
+  .tl-dot.todo { background:var(--surface-3); color:var(--muted); }
+  .tl-line { width:2px; flex:1; min-height:22px; background:var(--surface-3); }
+  .tl-line.done { background:var(--good); opacity:.5; }
+  .tl-body { padding-bottom:16px; }
+  .tl-body b { font-size:13px; display:block; }
+  .tl-body span { font-size:11.5px; color:var(--muted); line-height:1.4; display:block; margin-top:2px; }
+
+  /* ---------- Worker feed ---------- */
+  .job-card { border:1px solid var(--hairline); border-radius:16px; background:var(--surface-1); padding:14px; margin-bottom:10px; }
+  .job-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px; }
+  .job-top b { font-size:14px; display:block; }
+  .job-top .loc { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:4px; margin-top:3px; }
+  .job-top .loc svg { width:11px; height:11px; }
+  .payout { text-align:right; }
+  .payout b { font-size:16px; color:var(--good); font-variant-numeric:tabular-nums; }
+  .payout span { display:block; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .job-mid { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:11px; }
+  .skill-tag { font-size:11px; background:var(--surface-3); color:var(--ink-2); padding:4px 9px; border-radius:8px; font-weight:600; }
+  .skill-tag.match { background:var(--good-soft); color:var(--good); }
+  .job-card .btn { padding:11px; font-size:13px; border-radius:11px; }
+  .btn-solve { background:var(--brand); color:#fff; position:relative; }
+  .btn-solve.locked { background:var(--good-soft); color:var(--good); }
+
+  /* wallet */
+  .wallet-hero { background:linear-gradient(150deg, var(--brand-dim), #7a3212); border-radius:20px; padding:20px; }
+  .wallet-hero span { font-size:11px; text-transform:uppercase; letter-spacing:.08em; opacity:.85; }
+  .wallet-hero .amt { font-size:32px; font-weight:800; margin:4px 0 2px; }
+  .wallet-hero .pts { font-size:12.5px; opacity:.9; }
+  .badge-card { display:flex; align-items:center; gap:12px; }
+  .badge-ic { width:46px; height:46px; border-radius:14px; background:rgba(250,178,25,.12); color:var(--warning); display:grid; place-items:center; flex-shrink:0; }
+  .badge-ic svg { width:24px; height:24px; }
+  .ledger-row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--hairline); font-size:13px; }
+  .ledger-row:last-child { border:none; }
+  .ledger-row .l-sub { font-size:11px; color:var(--muted); display:block; margin-top:2px; }
+  .amt-in { color:var(--good); font-weight:700; font-variant-numeric:tabular-nums; }
+  .amt-hold { color:var(--warning); font-weight:700; font-variant-numeric:tabular-nums; }
+
+  /* OTP pad */
+  .otp-dots { display:flex; gap:12px; justify-content:center; margin:18px 0; }
+  .otp-dot { width:52px; height:58px; border-radius:12px; background:var(--surface-1); border:1.5px solid var(--hairline); display:grid; place-items:center; font-size:24px; font-weight:800; }
+  .otp-dot.filled { border-color:var(--brand); background:var(--brand-soft); color:var(--brand); }
+  .keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .keypad button { padding:16px; font-size:19px; font-weight:600; border-radius:14px; border:1px solid var(--hairline); background:var(--surface-1); color:var(--ink); }
+  .keypad button:active { background:var(--surface-3); }
+
+  /* ---------- Sponsor dashboard ---------- */
+  .dash { max-width:1180px; margin:0 auto; }
+  .dash-head { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+  .dash-head h2 { font-size:24px; font-weight:800; letter-spacing:-.02em; }
+  .dash-head .sub { color:var(--muted); font-size:13px; margin-top:4px; }
+  .sponsor-org { display:flex; align-items:center; gap:10px; background:var(--surface-1); border:1px solid var(--hairline); padding:10px 16px; border-radius:14px; }
+  .sponsor-org .ring { width:34px; height:34px; border-radius:50%; background:var(--blue-soft); color:var(--blue); display:grid; place-items:center; font-weight:800; font-size:13px; }
+  .sponsor-org b { font-size:13.5px; display:block; }
+  .sponsor-org span { font-size:11px; color:var(--muted); }
+
+  .kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:14px; }
+  .kpi { background:var(--surface-1); border:1px solid var(--hairline); border-radius:16px; padding:18px; }
+  .kpi .k-label { font-size:11.5px; color:var(--muted); font-weight:600; letter-spacing:.02em; }
+  .kpi .k-val { font-size:30px; font-weight:800; letter-spacing:-.02em; margin:6px 0 4px; }
+  .kpi .k-delta { font-size:12px; font-weight:600; display:flex; align-items:center; gap:4px; }
+  .kpi .k-delta.up { color:var(--good); }
+  .kpi .k-delta.down { color:#e66767; }
+  .kpi .k-delta svg { width:12px; height:12px; }
+
+  .dash-grid { display:grid; grid-template-columns:1.6fr 1fr; gap:14px; }
+  .panel { background:var(--surface-1); border:1px solid var(--hairline); border-radius:16px; padding:20px; }
+  .panel-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px; }
+  .panel-head b { font-size:15px; }
+  .panel-head .sub { font-size:11.5px; color:var(--muted); margin-top:2px; }
+
+  /* chart */
+  .chart-wrap { position:relative; }
+  .tooltip {
+    position:absolute; pointer-events:none; background:var(--surface-3);
+    border:1px solid var(--hairline); border-radius:10px; padding:8px 11px;
+    font-size:12px; opacity:0; transition:opacity .12s; white-space:nowrap; z-index:10;
+    box-shadow:0 6px 20px rgba(0,0,0,.4);
+  }
+  .tooltip b { display:block; font-size:13px; }
+  .tooltip span { color:var(--muted); }
+  .bar-hit { transition:fill .12s; }
+  .bar-hit:hover { fill:var(--blue); opacity:.85; }
+
+  /* release queue table */
+  .queue-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .queue-table th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); font-weight:700; padding:8px 10px; border-bottom:1px solid var(--hairline); }
+  .queue-table td { padding:12px 10px; border-bottom:1px solid var(--hairline); vertical-align:middle; }
+  .queue-table tr:last-child td { border-bottom:none; }
+  .queue-table tr.released { opacity:.45; }
+  .proof-th { width:44px; height:44px; border-radius:10px; overflow:hidden; position:relative; flex-shrink:0; }
+  .tkt-name { font-weight:600; font-size:13px; }
+  .tkt-sub { font-size:11px; color:var(--muted); }
+  .release-btn {
+    padding:8px 14px; border-radius:10px; border:none; background:var(--good-soft);
+    color:var(--good); font-size:12px; font-weight:700; white-space:nowrap;
+  }
+  .release-btn:hover { background:rgba(12,163,12,.25); }
+  .released-tag { display:inline-flex; align-items:center; gap:5px; color:var(--good); font-size:12px; font-weight:700; }
+  .released-tag svg { width:13px; height:13px; }
+  .auto-note { display:flex; gap:9px; align-items:flex-start; background:var(--blue-soft); border:1px solid rgba(57,135,229,.3); border-radius:12px; padding:11px 13px; font-size:12px; color:var(--ink-2); margin-top:14px; line-height:1.45; }
+  .auto-note svg { width:15px; height:15px; color:var(--blue); flex-shrink:0; margin-top:1px; }
+
+  .disclaimer { margin-top:26px; text-align:center; font-size:11.5px; color:var(--muted); font-style:italic; }
+
+  .row-flex { display:flex; align-items:center; gap:10px; }
+  .spacer { flex:1; }
+  .hidden { display:none !important; }
+  .mb8 { margin-bottom:8px; } .mb12 { margin-bottom:12px; } .mb16 { margin-bottom:16px; } .mb20 { margin-bottom:20px; }
+  .mt12 { margin-top:12px; } .mt16 { margin-top:16px; } .mt20 { margin-top:20px; }
+
+  .strike-through { position:relative; }
+  .dupe-overlay {
+    position:absolute; inset:0; background:rgba(208,59,59,.15); border:1.5px solid var(--critical);
+    border-radius:18px; display:none; place-items:center; z-index:5; backdrop-filter:blur(2px);
+  }
+  .dupe-overlay.show { display:grid; }
+  .dupe-overlay .inner { text-align:center; color:#e66767; font-weight:700; font-size:13px; }
+  .dupe-overlay .inner svg { width:26px; height:26px; display:block; margin:0 auto 6px; }
+
+  .confirm-banner {
+    display:flex; gap:12px; align-items:center; background:var(--good-soft);
+    border:1px solid rgba(12,163,12,.35); border-radius:16px; padding:14px; margin-bottom:16px;
+  }
+  .confirm-banner svg { width:22px; height:22px; color:var(--good); flex-shrink:0; }
+  .confirm-banner b { font-size:13.5px; display:block; }
+  .confirm-banner span { font-size:12px; color:var(--ink-2); }
+
+  .big-check { width:88px; height:88px; border-radius:50%; background:var(--good-soft); display:grid; place-items:center; margin:20px auto; animation:pop .4s cubic-bezier(.34,1.56,.64,1); }
+  .big-check svg { width:44px; height:44px; color:var(--good); }
+  @keyframes pop { from { transform:scale(.4); opacity:0; } to { transform:scale(1); opacity:1; } }
+
+  @media (max-width: 1100px) {
+    .kpi-row { grid-template-columns:repeat(2,1fr); }
+    .dash-grid { grid-template-columns:1fr; }
+    .demo-note { display:none; }
+    .phone { position:relative; top:0; }
+  }
+</style>
+</head>
+<body data-palette="#3987e5">
+
+<!-- ============ TOP BAR ============ -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9.5 21v-5h5v5"/></svg>
+    </div>
+    <h1>Civ<span>Fix</span></h1>
+  </div>
+  <div class="tagline">Report it. Fix it. Get rewarded. — <b style="color:var(--ink-2)">Team civnova</b></div>
+  <div class="role-switch">
+    <button class="role-btn active" data-role="citizen" onclick="switchRole('citizen')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
+      Citizen
+    </button>
+    <button class="role-btn" data-role="worker" onclick="switchRole('worker')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6.4 6.4L3 18v3h3l5.3-5.3a4.5 4.5 0 0 0 6.4-6.4l-3.2 3.2-2.6-.4-.4-2.6z"/></svg>
+      Worker
+    </button>
+    <button class="role-btn" data-role="sponsor" onclick="switchRole('sponsor')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10"/><path d="M12 21V6"/><path d="M18 21v-8"/></svg>
+      NGO / Sponsor
+    </button>
+  </div>
+  <div class="demo-note">Interactive prototype · civic stream = sponsor-funded escrow · household stream = requester-paid</div>
+</div>
+
+<div id="toasts"></div>
+
+<!-- ============ CITIZEN STAGE ============ -->
+<section class="stage active" id="stage-citizen">
+  <div class="phone-wrap">
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+
+      <!-- CITIZEN HOME -->
+      <div class="cit-scr" id="cit-home">
+        <div class="app-header">
+          <h2>CivFix</h2>
+          <div class="sub">Ward 12 · Pune Municipal limits</div>
+        </div>
+        <div class="app-body">
+          <div class="hero-greet">
+            <div class="hi">Namaste, Priya 👋<small>What needs fixing today?</small></div>
+            <div class="avatar">P</div>
+          </div>
+          <div class="points-pill">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z"/></svg>
+            340 civic points · Level 2 Reporter
+          </div>
+
+          <div class="stream-cards">
+            <button class="stream-card civic" onclick="citGo('cit-report')">
+              <span class="chip civic free">₹0 · Escrow</span>
+              <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4"/><path d="M12 16.5h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+              <b>Report a civic hazard</b>
+              <span>Potholes, streetlights, drainage. Sponsored NGOs &amp; CSR pay the fix.</span>
+            </button>
+            <button class="stream-card house" onclick="citGo('cit-house')">
+              <span class="chip house free">Paid · UPI</span>
+              <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg></div>
+              <b>Book a household fix</b>
+              <span>Plumber, electrician, cleaning. Pay the worker directly on completion.</span>
+            </button>
+          </div>
+
+          <div class="map-peek">
+            <div class="map-pin" style="left:22%; top:32%; background:var(--critical);"></div>
+            <div class="map-pin" style="left:58%; top:20%; background:var(--warning);"></div>
+            <div class="map-pin" style="left:72%; top:55%; background:var(--brand);"></div>
+            <div class="map-pin" style="left:38%; top:62%; background:var(--good);"></div>
+            <div class="legend">● live civic map — severity-colored</div>
+          </div>
+
+          <div class="section-label">My reports</div>
+          <div class="card" style="padding:4px 14px;">
+            <div class="ticket-row">
+              <div class="ticket-thumb" style="background:var(--brand-soft); color:var(--brand);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              </div>
+              <div class="t-info"><b>Streetlight out — Shivaji Nagar</b><span>#CF-2841 · reported 3 days ago</span></div>
+              <span class="chip good">Verified fix</span>
+            </div>
+            <div class="ticket-row">
+              <div class="ticket-thumb" style="background:rgba(208,59,59,.14); color:#e66767;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17c2-1 4-1 6 0s4 1 6 0 4-1 6 0"/><path d="M3 12c2-1 4-1 6 0s4 1 6 0 4-1 6 0"/><path d="M12 3v6"/></svg>
+              </div>
+              <div class="t-info"><b>Pothole near school gate</b><span>#CF-2857 · reported today</span></div>
+              <span class="chip critical">In queue</span>
+            </div>
+            <div class="ticket-row">
+              <div class="ticket-thumb" style="background:rgba(250,178,25,.12); color:var(--warning);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6.4 6.4L3 18v3h3l5.3-5.3a4.5 4.5 0 0 0 6.4-6.4l-3.2 3.2-2.6-.4-.4-2.6z"/></svg>
+              </div>
+              <div class="t-info"><b>Faucet leak — booked plumber</b><span>#HH-0912 · worker arriving 4 PM</span></div>
+              <span class="chip warning">Assigned</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CITIZEN: REPORT FLOW (step 1 capture) -->
+      <div class="cit-scr hidden" id="cit-report">
+        <button class="flow-back" onclick="citGo('cit-home')" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="app-header"><h2>Report civic hazard</h2><div class="sub">Stream 01 · REPORT — sponsor-funded, costs you ₹0</div></div>
+        <div class="app-body">
+          <div class="photo-frame" id="cit-photo" onclick="capturePhoto()">
+            <div class="cam-hint" id="cam-hint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l2-3h6l2 3h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span>Tap to open camera</span>
+              <span style="font-size:10.5px; opacity:.7;">photo + auto GPS is your proof</span>
+            </div>
+            <div class="photo-art hidden" id="pothole-art">
+              <svg viewBox="0 0 340 200" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;">
+                <rect width="340" height="200" fill="#5a5347"/>
+                <rect y="120" width="340" height="80" fill="#43403c"/>
+                <ellipse cx="170" cy="155" rx="70" ry="26" fill="#2b2a28"/>
+                <ellipse cx="170" cy="150" rx="58" ry="18" fill="#211f1e"/>
+                <path d="M100 128 q30 -8 60 -2" stroke="#6e675a" stroke-width="3" fill="none"/>
+                <path d="M210 178 q40 -6 70 2" stroke="#6e675a" stroke-width="3" fill="none"/>
+                <circle cx="60" cy="60" r="26" fill="#f5e6c8" opacity=".25"/>
+              </svg>
+            </div>
+            <div class="photo-meta hidden" id="photo-meta">
+              <span class="chip gray" id="meta-time">GPS · 18.5273° N, 73.8560° E</span>
+              <span class="chip gray" id="meta-clock">Today · 09:41</span>
+              <span class="chip good" id="meta-stamp">Geo-stamped ✓</span>
+            </div>
+          </div>
+
+          <div class="gps-chip mt12">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.4-8 12-8 12S4 15.4 4 10a8 8 0 0 1 8-8z"/></svg>
+            Auto-located: Dhole Patil Rd, near Ekta School gate
+            <div class="pulse" title="GPS locked"></div>
+          </div>
+
+          <div class="section-label">Category</div>
+          <div class="cat-grid" id="cat-grid">
+            <button class="cat on" data-cat="Pothole"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17c2-1 4-1 6 0s4 1 6 0 4-1 6 0"/><path d="M9 17c1-3 5-3 6 0"/></svg><span>Road</span></button>
+            <button class="cat" data-cat="Streetlight"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M12 3v5"/><path d="M8 8h8l-2 4h-4z"/><path d="M12 12v9"/></svg><span>Light</span></button>
+            <button class="cat" data-cat="Drainage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16v4H4z"/><path d="M7 8v12M12 8v12M17 8v12"/><path d="M7 12h10M7 16h10"/></svg><span>Drain</span></button>
+            <button class="cat" data-cat="Garbage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg><span>Waste</span></button>
+          </div>
+
+          <div class="section-label">Severity — how dangerous is it?</div>
+          <input type="range" min="1" max="10" value="8" class="sev-slider" id="sev" oninput="sevLabel()">
+          <div class="row-flex mt8" style="font-size:12px;">
+            <span style="color:var(--good); font-weight:700;">Low</span>
+            <div class="spacer"></div>
+            <b id="sev-out" style="color:var(--serious);">8 — High risk</b>
+            <div class="spacer"></div>
+            <span style="color:var(--critical); font-weight:700;">Critical</span>
+          </div>
+
+          <div class="section-label">Describe it (optional — AI reads this too)</div>
+          <textarea class="field" rows="2" id="cit-desc" placeholder="e.g. Deep pothole right at the school crossing, two-wheelers swerve into traffic to avoid it…"></textarea>
+
+          <button class="btn btn-primary mt16" id="btn-submit-report" onclick="classifyTicket()">Submit ticket</button>
+        </div>
+      </div>
+
+      <!-- CITIZEN: STEP 2 AI CLASSIFY + PRIORITY -->
+      <div class="cit-scr hidden" id="cit-classify">
+        <button class="flow-back" onclick="citGo('cit-report')" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="app-header"><h2>AI classification</h2><div class="sub">Stream 02 · CONNECT — tagging &amp; priority scoring</div></div>
+        <div class="app-body">
+          <div class="ai-card">
+            <div class="ai-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 0 1 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9z"/><path d="M12 8v4l2.5 2.5"/></svg>
+              <b>CivFix Vision · auto-tagged</b>
+            </div>
+            <div class="ai-rows">
+              <div class="ai-row"><span>Problem type</span><b id="ai-type">Pothole — road surface</b></div>
+              <div class="ai-row"><span>Required skill</span><b>Road mason / PWD crew</b></div>
+              <div class="ai-row"><span>Severity</span><b id="ai-sev">High</b></div>
+              <div class="ai-row"><span>Safety risk</span><b>School zone — child traffic</b></div>
+              <div class="ai-row"><span>Est. repair cost</span><b>₹2,400 (escrow)</b></div>
+            </div>
+          </div>
+
+          <div class="section-label" style="text-align:center;">Priority score</div>
+          <div class="score-ring">
+            <svg width="74" height="74" viewBox="0 0 74 74">
+              <circle cx="37" cy="37" r="31" fill="none" stroke="var(--surface-3)" stroke-width="7"/>
+              <circle cx="37" cy="37" r="31" fill="none" stroke="var(--serious)" stroke-width="7" stroke-linecap="round"
+                stroke-dasharray="194.8" stroke-dashoffset="35" id="score-arc"/>
+            </svg>
+            <div class="val" style="color:var(--serious);">82</div>
+          </div>
+          <div style="text-align:center; font-size:11.5px; color:var(--muted); line-height:1.5;">
+            Score = f(severity, safety risk, location importance, report volume)<br>
+            <b style="color:var(--warning);">AMBER QUEUE</b> — jumps ahead of cosmetic complaints
+          </div>
+
+          <div class="card mt16" style="border-color:rgba(208,59,59,.4); background:rgba(208,59,59,.08);">
+            <div class="row-flex">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e66767" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16.5h.01"/></svg>
+              <div style="font-size:12px; line-height:1.45;"><b>Duplicate check:</b> no open ticket within 40 m of this geo-stamp — new ticket accepted.</div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary mt16" onclick="citGo('cit-ticket'); toast('Ticket #CF-2861 created and pushed to the worker feed','var(--good)')">Confirm &amp; publish ticket</button>
+        </div>
+      </div>
+
+      <!-- CITIZEN: TICKET LIVE -->
+      <div class="cit-scr hidden" id="cit-ticket">
+        <button class="flow-back" onclick="citGo('cit-home')" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="app-header"><h2>Ticket #CF-2861</h2><div class="sub">Pothole — Dhole Patil Rd · ₹0 to you · escrow-funded</div></div>
+        <div class="app-body">
+          <div class="row-flex mb12">
+            <span class="chip serious">Priority 82</span>
+            <span class="chip civic">Civic stream</span>
+            <span class="chip gray">Pothole</span>
+          </div>
+          <div class="card mb16" style="padding:12px;">
+            <div style="position:relative; border-radius:12px; overflow:hidden; height:110px;">
+              <svg viewBox="0 0 340 200" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;display:block;">
+                <rect width="340" height="200" fill="#5a5347"/><rect y="120" width="340" height="80" fill="#43403c"/>
+                <ellipse cx="170" cy="155" rx="70" ry="26" fill="#2b2a28"/><ellipse cx="170" cy="150" rx="58" ry="18" fill="#211f1e"/>
+              </svg>
+              <span class="chip gray" style="position:absolute; bottom:8px; left:8px;">Before proof · geo-stamped</span>
+            </div>
+          </div>
+
+          <div class="section-label">Live status</div>
+          <div class="timeline">
+            <div class="tl-step">
+              <div class="tl-rail"><div class="tl-dot done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="tl-line done"></div></div>
+              <div class="tl-body"><b>Reported</b><span>Your photo + GPS · 09:41 today</span></div>
+            </div>
+            <div class="tl-step">
+              <div class="tl-rail"><div class="tl-dot done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="tl-line done"></div></div>
+              <div class="tl-body"><b>Classified &amp; scored</b><span>AI tagged · priority 82 · amber queue</span></div>
+            </div>
+            <div class="tl-step">
+              <div class="tl-rail"><div class="tl-dot now" id="tl-accept-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg></div><div class="tl-line" id="tl-accept-line"></div></div>
+              <div class="tl-body"><b>Waiting for a nearby worker</b><span id="tl-accept-txt">3 verified road masons within 1.2 km are seeing your ticket…</span></div>
+            </div>
+            <div class="tl-step">
+              <div class="tl-rail"><div class="tl-dot todo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg></div><div class="tl-line"></div></div>
+              <div class="tl-body"><b>Repair with before/after proof</b><span>Worker uploads evidence · duplicate re-check</span></div>
+            </div>
+            <div class="tl-step">
+              <div class="tl-rail"><div class="tl-dot todo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg></div></div>
+              <div class="tl-body"><b>You confirm with Resolution OTP</b><span>Only then is escrow released to the worker</span></div>
+            </div>
+          </div>
+
+          <button class="btn btn-ghost mt12" onclick="workerAcceptedDemo()">Simulate: worker accepts (demo)</button>
+        </div>
+      </div>
+
+      <!-- CITIZEN: OTP CONFIRM -->
+      <div class="cit-scr hidden" id="cit-otp">
+        <button class="flow-back" onclick="citGo('cit-ticket')" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="app-header"><h2>Confirm the fix</h2><div class="sub">Stream 04 · REWARD — your OTP releases escrow</div></div>
+        <div class="app-body">
+          <div class="confirm-banner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <div><b>Worker Ramesh marked the job complete</b><span>After-photo on file · duplicate check passed. Only confirm if you've seen the fix.</span></div>
+          </div>
+          <div class="card mb16" style="padding:12px;">
+            <div style="position:relative; border-radius:12px; overflow:hidden; height:120px;">
+              <svg viewBox="0 0 340 200" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;display:block;">
+                <rect width="340" height="200" fill="#43403c"/><rect width="340" height="200" fill="#4a4642"/>
+                <rect y="130" width="340" height="70" fill="#57534d"/>
+                <ellipse cx="170" cy="152" rx="66" ry="18" fill="#6b665e"/>
+                <ellipse cx="170" cy="150" rx="56" ry="12" fill="#767169"/>
+                <path d="M110 140 h40 M190 148 h50" stroke="#7d786f" stroke-width="4"/>
+                <rect x="96" y="112" width="150" height="8" rx="4" fill="#8a847a" opacity=".8"/>
+              </svg>
+              <span class="chip good" style="position:absolute; bottom:8px; left:8px;">After proof ✓</span>
+            </div>
+          </div>
+          <div style="text-align:center; font-size:13px; color:var(--ink-2);">Enter the 4-digit OTP sent to your phone</div>
+          <div class="otp-dots" id="cit-otp-dots">
+            <div class="otp-dot"></div><div class="otp-dot"></div><div class="otp-dot"></div><div class="otp-dot"></div>
+          </div>
+          <div class="keypad" id="cit-keypad"></div>
+          <button class="btn btn-primary mt16" id="cit-otp-btn" disabled onclick="citConfirmOtp()">Verify &amp; release ₹2,400 escrow</button>
+        </div>
+      </div>
+
+      <!-- CITIZEN: DONE -->
+      <div class="cit-scr hidden" id="cit-done">
+        <div class="app-header"><h2>Verified &amp; rewarded</h2><div class="sub">Ticket #CF-2861 closed</div></div>
+        <div class="app-body" style="text-align:center;">
+          <div class="big-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <div style="font-size:16px; font-weight:800;">Fix verified. Loop closed.</div>
+          <p style="font-size:12.5px; color:var(--muted); margin-top:6px; line-height:1.5;">Escrow ₹2,400 released to the worker by sponsor <b style="color:var(--blue)">Rotary Club Pune</b>. No money ever touched the municipality or you.</p>
+          <div class="card mt20" style="text-align:left;">
+            <div class="section-label" style="margin-top:0;">You earned</div>
+            <div class="row-flex mb8"><span class="chip warning">+50 points</span><span style="font-size:12.5px; color:var(--ink-2);">civic reporter points</span></div>
+            <div class="row-flex mb8"><span class="chip good">Badge</span><span style="font-size:12.5px; color:var(--ink-2);">"School-zone Guardian"</span></div>
+            <div class="row-flex"><span class="chip civic">Impact</span><span style="font-size:12.5px; color:var(--ink-2);">your street is now hazard-free</span></div>
+          </div>
+          <button class="btn btn-primary mt20" onclick="citGo('cit-home')">Back to home</button>
+        </div>
+      </div>
+
+      <!-- CITIZEN: HOUSEHOLD BOOKING -->
+      <div class="cit-scr hidden" id="cit-house">
+        <button class="flow-back" onclick="citGo('cit-home')" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="app-header"><h2>Household fix</h2><div class="sub">Stream 02 · private job — you pay the worker directly</div></div>
+        <div class="app-body">
+          <div class="row-flex mb12">
+            <span class="chip house">Household stream</span>
+            <span class="chip gray">Same verified workforce</span>
+          </div>
+          <div class="card mb16" style="border-color:var(--brand); background:var(--brand-soft);">
+            <div style="font-size:12.5px; line-height:1.5;"><b>Booked: Faucet leak repair</b><br><span style="color:var(--ink-2)">Ramesh K. · ★ 4.9 · 212 verified fixes · 0.8 km away<br>Arriving today 4:00 PM · est. ₹350 (incl. 6% platform commission)</span></div>
+          </div>
+          <div class="section-label">Job complete? Settle in-app</div>
+          <div class="card">
+            <div class="row-flex mb12">
+              <div style="width:42px;height:42px;border-radius:12px;background:var(--blue-soft);display:grid;place-items:center;color:var(--blue);flex-shrink:0;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              </div>
+              <div style="flex:1;"><b style="font-size:13.5px;">Pay via UPI</b><div style="font-size:11.5px;color:var(--muted);">priya@okhdfc · balance ₹2,140</div></div>
+              <b style="font-size:18px; font-variant-numeric:tabular-nums;">₹350</b>
+            </div>
+            <div style="font-size:11px; color:var(--muted); margin-bottom:12px; line-height:1.5;">Payment is held until you tap confirm — a ledger entry on the ticket, not a side channel. Worker receives ₹329 after 6% commission.</div>
+            <button class="btn btn-blue" onclick="citPayHouse()">Pay ₹350 on completion</button>
+          </div>
+          <div class="card mt12" style="font-size:12px; color:var(--muted); line-height:1.5;">
+            <b style="color:var(--ink-2)">Why one app for both?</b> The same idle local workforce serves civic and private demand — steady income for workers, one verification standard for everyone.
+          </div>
+        </div>
+      </div>
+
+    </div></div>
+  </div>
+</section>
+
+<!-- ============ WORKER STAGE ============ -->
+<section class="stage" id="stage-worker">
+  <div class="phone-wrap">
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+
+      <!-- WORKER FEED -->
+      <div class="wrk-scr" id="wrk-feed">
+        <div class="app-header">
+          <h2>Live gig feed</h2>
+          <div class="sub">Ramesh K. · Road mason · ★ 4.9 · 0.4 km radius scan</div>
+        </div>
+        <div class="app-body">
+          <div class="seg mb16">
+            <button class="on" id="tab-civic" onclick="wrkTab('civic')">Civic gigs <span class="chip civic" style="margin-left:4px;">4</span></button>
+            <button id="tab-house" onclick="wrkTab('house')">Household <span class="chip house" style="margin-left:4px;">2</span></button>
+          </div>
+
+          <div id="feed-civic">
+            <div class="job-card" id="job-cf2861">
+              <div class="job-top">
+                <div>
+                  <b>Pothole — near Ekta School gate</b>
+                  <div class="loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.4-8 12-8 12S4 15.4 4 10a8 8 0 0 1 8-8z"/></svg>0.6 km · Dhole Patil Rd</div>
+                </div>
+                <div class="payout"><b>₹2,400</b><span>escrow</span></div>
+              </div>
+              <div class="job-mid">
+                <span class="chip critical">Priority 82</span>
+                <span class="chip civic">Civic · NGO escrow</span>
+                <span class="skill-tag match">Road mason ✓ your skill</span>
+              </div>
+              <button class="btn btn-solve" id="solve-2861" onclick="solveJob('2861')">I Can Solve This</button>
+            </div>
+
+            <div class="job-card">
+              <div class="job-top">
+                <div><b>Streetlight out — 3rd pole, MG Road</b>
+                  <div class="loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.4-8 12-8 12S4 15.4 4 10a8 8 0 0 1 8-8z"/></svg>1.1 km</div></div>
+                <div class="payout"><b>₹900</b><span>escrow</span></div>
+              </div>
+              <div class="job-mid">
+                <span class="chip serious">Priority 64</span>
+                <span class="chip civic">Civic · CSR fund</span>
+                <span class="skill-tag">Electrician</span>
+              </div>
+              <button class="btn btn-ghost" disabled>Skill mismatch</button>
+            </div>
+
+            <div class="job-card">
+              <div class="job-top">
+                <div><b>Overflowing drain — market lane</b>
+                  <div class="loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.4-8 12-8 12S4 15.4 4 10a8 8 0 0 1 8-8z"/></svg>0.9 km</div></div>
+                <div class="payout"><b>₹1,500</b><span>escrow</span></div>
+              </div>
+              <div class="job-mid">
+                <span class="chip warning">Priority 71</span>
+                <span class="chip civic">Civic · Rotary</span>
+                <span class="skill-tag">Sanitation crew</span>
+              </div>
+              <button class="btn btn-ghost" disabled>Skill mismatch</button>
+            </div>
+          </div>
+
+          <div id="feed-house" class="hidden">
+            <div class="job-card">
+              <div class="job-top">
+                <div><b>Faucet leak — Block B, Ashirwad Apts</b>
+                  <div class="loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.4-8 12-8 12S4 15.4 4 10a8 8 0 0 1 8-8z"/></svg>0.8 km</div></div>
+                <div class="payout"><b>₹329</b><span>after 6% fee</span></div>
+              </div>
+              <div class="job-mid">
+                <span class="chip house">Household · UPI</span>
+                <span class="skill-tag match">Plumbing ✓ side skill</span>
+              </div>
+              <button class="btn btn-ghost" onclick="toast('Switch to your plumbing profile to claim household jobs','var(--blue)')">View job</button>
+            </div>
+            <div class="job-card">
+              <div class="job-top">
+                <div><b>Bathroom deep clean — 2BHK</b>
+                  <div class="loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.4-8 12-8 12S4 15.4 4 10a8 8 0 0 1 8-8z"/></svg>1.4 km</div></div>
+                <div class="payout"><b>₹470</b><span>after 6% fee</span></div>
+              </div>
+              <div class="job-mid">
+                <span class="chip house">Household · UPI</span>
+                <span class="skill-tag">Cleaning</span>
+              </div>
+              <button class="btn btn-ghost" disabled>Skill mismatch</button>
+            </div>
+            <div class="card" style="font-size:12px; color:var(--muted); line-height:1.5;">
+              <b style="color:var(--ink-2)">One feed, two streams.</b> Civic escrow jobs pay out after citizen OTP + sponsor release. Household jobs settle by UPI the moment the requester confirms.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WORKER: REPAIR FLOW -->
+      <div class="wrk-scr hidden" id="wrk-repair">
+        <button class="flow-back" onclick="wrkGo('wrk-feed')" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="app-header"><h2>Job locked ✓</h2><div class="sub">#CF-2861 Pothole · ₹2,400 escrow · claimed by you 09:47</div></div>
+        <div class="app-body">
+          <div class="card mb12" style="border-color:var(--good); background:var(--good-soft); font-size:12.5px; line-height:1.45;">
+            <b>Locked for you for 4 hours.</b> Other workers can't claim it. Nearest supply: cement, paver blocks — 2 hardware shops within 900 m.
+          </div>
+
+          <div class="section-label">Step 1 — Before photo <span style="color:var(--good)">✓ on file (from ticket)</span></div>
+          <div class="section-label">Step 2 — After photo</div>
+          <div class="photo-frame" id="wrk-photo" onclick="captureAfter()">
+            <div class="cam-hint" id="wrk-cam-hint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l2-3h6l2 3h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span>Tap to capture after-photo</span>
+              <span style="font-size:10.5px; opacity:.7;">must be geo-matched to the before-shot</span>
+            </div>
+            <div class="photo-art hidden" id="fixed-art">
+              <svg viewBox="0 0 340 200" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;">
+                <rect width="340" height="200" fill="#4a4642"/><rect y="130" width="340" height="70" fill="#57534d"/>
+                <ellipse cx="170" cy="152" rx="66" ry="18" fill="#6b665e"/><ellipse cx="170" cy="150" rx="56" ry="12" fill="#767169"/>
+                <rect x="96" y="112" width="150" height="8" rx="4" fill="#8a847a" opacity=".8"/>
+              </svg>
+            </div>
+            <div class="photo-meta hidden" id="wrk-photo-meta">
+              <span class="chip gray">GPS match ✓ same geo-fence</span>
+              <span class="chip good">Today · 13:05</span>
+            </div>
+          </div>
+
+          <div class="section-label">Submit for verification</div>
+          <div class="card" style="font-size:12px; color:var(--muted); line-height:1.6;">
+            Before submitting, CivFix runs:<br>
+            ✓ before/after image pair on the same ticket<br>
+            ✓ same-location duplicate check (no double-claim)<br>
+            ✓ auto GPS + timestamp match<br>
+            → then the citizen confirms with a <b style="color:var(--ink-2)">Resolution OTP</b>
+          </div>
+          <button class="btn btn-primary mt16" id="wrk-submit" disabled onclick="submitProof()">Submit proof — awaiting citizen OTP</button>
+        </div>
+      </div>
+
+      <!-- WORKER: PENDING OTP -->
+      <div class="wrk-scr hidden" id="wrk-pending">
+        <div class="app-header"><h2>Proof submitted</h2><div class="sub">#CF-2861 · in citizen verification</div></div>
+        <div class="app-body" style="text-align:center;">
+          <div style="width:80px;height:80px;border-radius:50%;background:var(--blue-soft);display:grid;place-items:center;margin:24px auto 16px;animation:pulse 1.8s infinite;">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </div>
+          <div style="font-size:15px; font-weight:800;">Waiting for citizen OTP…</div>
+          <p style="font-size:12.5px; color:var(--muted); margin:8px 24px 0; line-height:1.5;">Priya (reporter) got your after-photo. Her OTP is the last gate before the sponsor releases your ₹2,400.</p>
+          <button class="btn btn-ghost mt20" onclick="citSideDemo(); switchRole('citizen');">Simulate citizen's phone (demo)</button>
+        </div>
+      </div>
+
+      <!-- WORKER: EARNED -->
+      <div class="wrk-scr hidden" id="wrk-earned">
+        <div class="app-header"><h2>Verified!</h2><div class="sub">#CF-2861 closed · payment released</div></div>
+        <div class="app-body" style="text-align:center;">
+          <div class="big-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <div style="font-size:16px; font-weight:800;">₹2,400 credited to wallet</div>
+          <p style="font-size:12.5px; color:var(--muted); margin-top:6px;">Citizen OTP verified · sponsor release approved · reputation +1</p>
+          <div class="card mt20" style="text-align:left;">
+            <div class="row-flex mb12">
+              <div class="badge-ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z"/></svg></div>
+              <div><b style="font-size:13.5px;">New reputation badge: RoadFixer II</b><div style="font-size:11.5px;color:var(--muted);">10 school-zone fixes · portable track record</div></div>
+            </div>
+            <div class="row-flex"><span class="chip good">Streak</span><span style="font-size:12.5px; color:var(--ink-2);">12 verified closures, 0 disputes</span></div>
+          </div>
+          <div class="row-flex mt16" style="gap:10px;">
+            <button class="btn btn-primary" onclick="wrkGo('wrk-wallet')">Open wallet</button>
+            <button class="btn btn-ghost" onclick="wrkGo('wrk-feed')">Next gig</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- WORKER WALLET -->
+      <div class="wrk-scr hidden" id="wrk-wallet">
+        <button class="flow-back" onclick="wrkGo('wrk-feed')" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="app-header"><h2>Wallet &amp; reputation</h2><div class="sub">Both streams, one ledger</div></div>
+        <div class="app-body">
+          <div class="wallet-hero">
+            <span>Available balance</span>
+            <div class="amt">₹11,240</div>
+            <div class="pts">+ 640 civic points · Level "RoadFixer II"</div>
+          </div>
+          <div class="section-label">Ledger — every entry is ticket-bound</div>
+          <div class="card" style="padding:4px 14px;">
+            <div class="ledger-row">
+              <div><b>Pothole #CF-2861</b><span class="l-sub">Civic · escrow release · Rotary Club Pune</span></div>
+              <span class="amt-in">+₹2,400</span>
+            </div>
+            <div class="ledger-row">
+              <div><b>Faucet leak #HH-0912</b><span class="l-sub">Household · UPI · after 6% fee</span></div>
+              <span class="amt-in">+₹329</span>
+            </div>
+            <div class="ledger-row">
+              <div><b>Drain #CF-2799</b><span class="l-sub">Civic · in escrow — awaiting citizen OTP</span></div>
+              <span class="amt-hold">₹1,500 held</span>
+            </div>
+            <div class="ledger-row">
+              <div><b>Kerb repair #CF-2741</b><span class="l-sub">Civic · escrow release · CSR fund</span></div>
+              <span class="amt-in">+₹1,800</span>
+            </div>
+          </div>
+          <button class="btn btn-ghost mt16" onclick="toast('UPI payout requested — arrives in your bank in 24h (Phase 2: auto-settlement)','var(--good)')">Withdraw to bank (UPI)</button>
+        </div>
+      </div>
+
+    </div></div>
+  </div>
+</section>
+
+<!-- ============ SPONSOR DASHBOARD ============ -->
+<section class="stage" id="stage-sponsor">
+  <div class="dash">
+    <div class="dash-head">
+      <div>
+        <h2>Escrow release dashboard</h2>
+        <div class="sub">Sponsor queue — verified tickets with proof + citizen OTP, awaiting your release</div>
+      </div>
+      <div class="sponsor-org">
+        <div class="ring">RC</div>
+        <div><b>Rotary Club Pune West</b><span>CSR / escrow partner · Ward 12</span></div>
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="k-label">Funds in escrow</div>
+        <div class="k-val">₹48,200</div>
+        <div class="k-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>₹6,100 in last 24h</div>
+      </div>
+      <div class="kpi">
+        <div class="k-label">Verified fixes this month</div>
+        <div class="k-val">37</div>
+        <div class="k-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>+23% vs last month</div>
+      </div>
+      <div class="kpi">
+        <div class="k-label">Avg time-to-release</div>
+        <div class="k-val">2.1 <span style="font-size:15px; color:var(--muted); font-weight:600;">days</span></div>
+        <div class="k-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>municipal baseline: 45 days</div>
+      </div>
+      <div class="kpi">
+        <div class="k-label">Workers paid</div>
+        <div class="k-val">112</div>
+        <div class="k-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>₹1.86L to local workforce</div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div><b>Verified fixes released per week</b><div class="sub">Rotary Pune West · Ward 12 · last 8 weeks</div></div>
+          <span class="chip civic">Single series · escrow releases</span>
+        </div>
+        <div class="chart-wrap" id="chart-wrap">
+          <svg id="bar-chart" viewBox="0 0 640 240" width="100%" role="img" aria-label="Bar chart of verified fixes released per week, rising from 2 to 9 over eight weeks"></svg>
+          <div class="tooltip" id="chart-tip"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><b>Release queue</b><div class="sub">Evidence-gated: proof ✓ · OTP ✓ · then money moves</div></div>
+        </div>
+        <table class="queue-table">
+          <thead><tr><th>Ticket</th><th>Proof</th><th>Priority</th><th></th></tr></thead>
+          <tbody id="queue-body">
+            <tr data-amt="2400">
+              <td><div class="tkt-name">Pothole #CF-2861</div><div class="tkt-sub">Dhole Patil Rd · ₹2,400 · OTP ✓</div></td>
+              <td><div class="proof-th"><svg viewBox="0 0 44 44" style="display:block;"><rect width="44" height="44" fill="#4a4642"/><rect y="26" width="44" height="18" fill="#57534d"/><ellipse cx="22" cy="33" rx="14" ry="5" fill="#6b665e"/></svg></div></td>
+              <td><span class="chip serious">▲ 82</span></td>
+              <td style="text-align:right;"><button class="release-btn" onclick="releaseRow(this)">Approve release</button></td>
+            </tr>
+            <tr data-amt="1500">
+              <td><div class="tkt-name">Drain overflow #CF-2799</div><div class="tkt-sub">Market Lane · ₹1,500 · OTP ✓</div></td>
+              <td><div class="proof-th"><svg viewBox="0 0 44 44" style="display:block;"><rect width="44" height="44" fill="#3d4a42"/><rect x="8" y="10" width="28" height="24" rx="3" fill="#2b3a31"/><path d="M12 18h20M12 24h20M12 30h14" stroke="#4d5f52" stroke-width="2"/></svg></div></td>
+              <td><span class="chip warning">▲ 71</span></td>
+              <td style="text-align:right;"><button class="release-btn" onclick="releaseRow(this)">Approve release</button></td>
+            </tr>
+            <tr data-amt="900">
+              <td><div class="tkt-name">Streetlight #CF-2841</div><div class="tkt-sub">Shivaji Nagar · ₹900 · OTP ✓</div></td>
+              <td><div class="proof-th"><svg viewBox="0 0 44 44" style="display:block;"><rect width="44" height="44" fill="#2b2a28"/><path d="M22 8v22" stroke="#57534d" stroke-width="3"/><path d="M14 12h16l-4 7h-8z" fill="#6e675a"/><circle cx="22" cy="35" r="5" fill="#fab219"/></svg></div></td>
+              <td><span class="chip serious">▲ 64</span></td>
+              <td style="text-align:right;"><button class="release-btn" onclick="releaseRow(this)">Approve release</button></td>
+            </tr>
+            <tr data-amt="1800">
+              <td><div class="tkt-name">Kerb repair #CF-2741</div><div class="tkt-sub">Model Colony · ₹1,800 · OTP ✓</div></td>
+              <td><div class="proof-th"><svg viewBox="0 0 44 44" style="display:block;"><rect width="44" height="44" fill="#57534d"/><rect y="28" width="44" height="16" fill="#6b665e"/><rect x="4" y="24" width="9" height="7" rx="1.5" fill="#8a847a"/><rect x="17" y="24" width="9" height="7" rx="1.5" fill="#8a847a"/><rect x="30" y="24" width="9" height="7" rx="1.5" fill="#8a847a"/></svg></div></td>
+              <td><span class="chip gray">▲ 41</span></td>
+              <td style="text-align:right;"><button class="release-btn" onclick="releaseRow(this)">Approve release</button></td>
+            </tr>
+            <tr class="released" data-amt="0">
+              <td><div class="tkt-name">Signage #CF-2708</div><div class="tkt-sub">FC Road · ₹1,100 · released Mon</div></td>
+              <td><div class="proof-th"><svg viewBox="0 0 44 44" style="display:block;"><rect width="44" height="44" fill="#3a4450"/><rect x="10" y="10" width="24" height="16" rx="2" fill="#5598e7"/><path d="M22 26v10" stroke="#57534d" stroke-width="3"/></svg></div></td>
+              <td><span class="chip gray">—</span></td>
+              <td style="text-align:right;"><span class="released-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Released</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="auto-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg>
+          <div><b>Auto-release is ON for tickets below trust threshold ₹1,000</b> with complete proof + citizen OTP — they settle without your click. Everything above needs one approval, exactly like row 1.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="disclaimer">Dashboard figures shown are illustrative — CivFix prototype, Team civnova.</div>
+  </div>
+</section>
+
+<script>
+/* ================= router & toasts ================= */
+function switchRole(r) {
+  document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
+  document.getElementById('stage-' + r).classList.add('active');
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.toggle('active', b.dataset.role === r));
+  window.scrollTo({top: 0});
+}
+function toast(msg, color) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = '<span class="dot" style="background:' + (color || 'var(--brand)') + '"></span>' + msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 320); }, 3400);
+}
+function citGo(id)  { show('cit-scr', id); }
+function wrkGo(id)  { show('wrk-scr', id); }
+function show(cls, id) {
+  document.querySelectorAll('.' + cls).forEach(s => s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  document.querySelector('#stage-' + (cls === 'cit-scr' ? 'citizen' : 'worker') + ' .app-body')?.scrollTo(0, 0);
+}
+
+/* ================= citizen flow ================= */
+let sevVal = 8;
+function sevLabel() {
+  sevVal = +document.getElementById('sev').value;
+  const out = document.getElementById('sev-out');
+  const desc = sevVal >= 9 ? ['Critical — hazard', 'var(--critical)'] :
+               sevVal >= 6 ? ['High risk', 'var(--serious)'] :
+               sevVal >= 4 ? ['Moderate', 'var(--warning)'] : ['Low', 'var(--good)'];
+  out.textContent = sevVal + ' — ' + desc[0];
+  out.style.color = desc[1];
+}
+document.querySelectorAll('#cat-grid .cat').forEach(c => c.addEventListener('click', () => {
+  document.querySelectorAll('#cat-grid .cat').forEach(x => x.classList.remove('on'));
+  c.classList.add('on');
+}));
+
+function capturePhoto() {
+  if (document.getElementById('pothole-art') && !document.getElementById('pothole-art').classList.contains('hidden')) return;
+  document.getElementById('cam-hint').classList.add('hidden');
+  document.getElementById('pothole-art').classList.remove('hidden');
+  document.getElementById('photo-meta').classList.remove('hidden');
+  document.getElementById('cit-photo').classList.add('captured');
+  toast('Photo captured · auto GPS + timestamp stamped on ticket', 'var(--good)');
+}
+
+function classifyTicket() {
+  const cat = document.querySelector('#cat-grid .cat.on')?.dataset.cat || 'Pothole';
+  document.getElementById('ai-type').textContent = cat === 'Road' ? 'Pothole — road surface' : cat;
+  const sevTxt = sevVal >= 9 ? 'Critical' : sevVal >= 6 ? 'High' : sevVal >= 4 ? 'Moderate' : 'Low';
+  document.getElementById('ai-sev').textContent = sevTxt;
+  citGo('cit-classify');
+}
+
+function workerAcceptedDemo() {
+  const dot = document.getElementById('tl-accept-dot');
+  const txt = document.getElementById('tl-accept-txt');
+  dot.classList.remove('now'); dot.classList.add('done');
+  dot.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  document.getElementById('tl-accept-line').classList.add('done');
+  txt.innerHTML = '<b style="color:var(--good)">Ramesh K. (★4.9, 0.6 km) claimed the job</b> — before/after repair in progress. You\'ll get an OTP when he marks it done.';
+  toast('Job locked by Ramesh K. — "I Can Solve This" claimed it in 6 min', 'var(--good)');
+  setTimeout(() => citGo('cit-otp'), 1400);
+}
+
+/* citizen OTP */
+let citOtp = '';
+(function buildKeypad() {
+  const kp = document.getElementById('cit-keypad');
+  ['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(k => {
+    const b = document.createElement('button');
+    b.textContent = k; b.disabled = k === '';
+    b.onclick = () => pressCit(k);
+    kp.appendChild(b);
+  });
+})();
+function pressCit(k) {
+  if (k === '⌫') citOtp = citOtp.slice(0, -1); else if (citOtp.length < 4) citOtp += k;
+  document.querySelectorAll('#cit-otp-dots .otp-dot').forEach((d, i) => {
+    d.classList.toggle('filled', i < citOtp.length);
+    d.textContent = i < citOtp.length ? '•' : '';
+  });
+  document.getElementById('cit-otp-btn').disabled = citOtp.length !== 4;
+}
+function citConfirmOtp() {
+  toast('OTP verified — escrow release request sent to sponsor dashboard', 'var(--good)');
+  citGo('cit-done');
+}
+function citPayHouse() {
+  toast('₹350 paid to Ramesh K. · worker gets ₹329 · 6% platform commission', 'var(--blue)');
+}
+/* used by worker side "simulate citizen's phone" */
+function citSideDemo() { toast('On Priya\'s phone: after-photo received, OTP screen open', 'var(--blue)'); }
+
+/* ================= worker flow ================= */
+function wrkTab(t) {
+  document.getElementById('feed-civic').classList.toggle('hidden', t !== 'civic');
+  document.getElementById('feed-house').classList.toggle('hidden', t !== 'house');
+  document.getElementById('tab-civic').classList.toggle('on', t === 'civic');
+  document.getElementById('tab-house').classList.toggle('on', t === 'house');
+}
+function solveJob(id) {
+  const btn = document.getElementById('solve-' + id);
+  btn.classList.add('locked');
+  btn.innerHTML = '✓ Job locked for you — opening repair flow';
+  toast('Tap claimed & locked the job. Other workers can no longer see #CF-' + id, 'var(--good)');
+  setTimeout(() => wrkGo('wrk-repair'), 1100);
+}
+function captureAfter() {
+  document.getElementById('wrk-cam-hint').classList.add('hidden');
+  document.getElementById('fixed-art').classList.remove('hidden');
+  document.getElementById('wrk-photo-meta').classList.remove('hidden');
+  document.getElementById('wrk-photo').classList.add('captured');
+  document.getElementById('wrk-submit').disabled = false;
+  toast('After-photo captured · geo-fence matches before-shot ✓', 'var(--good)');
+}
+function submitProof() {
+  toast('Duplicate check passed · proof pair complete · citizen OTP requested', 'var(--blue)');
+  setTimeout(() => wrkGo('wrk-pending'), 1000);
+}
+function wrkEarned() {
+  wrkGo('wrk-earned');
+  switchRole('worker');
+  toast('₹2,400 released by sponsor · credited to wallet', 'var(--good)');
+}
+
+/* ================= sponsor dashboard ================= */
+function releaseRow(btn) {
+  const tr = btn.closest('tr');
+  const amt = tr.dataset.amt;
+  tr.classList.add('released');
+  btn.outerHTML = '<span class="released-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Released</span>';
+  toast('₹' + (+amt).toLocaleString('en-IN') + ' escrow released to worker — ledger entry written on the ticket', 'var(--good)');
+}
+
+/* bar chart: releases per week (single series, validated blue on dark surface) */
+(function drawChart() {
+  const data = [
+    {w: 'Wk 1', v: 2}, {w: 'Wk 2', v: 3}, {w: 'Wk 3', v: 3}, {w: 'Wk 4', v: 4},
+    {w: 'Wk 5', v: 5}, {w: 'Wk 6', v: 6}, {w: 'Wk 7', v: 8}, {w: 'Wk 8', v: 9}
+  ];
+  const svg = document.getElementById('bar-chart');
+  const W = 640, H = 240, padL = 34, padB = 30, padT = 14;
+  const iw = W - padL - 12, ih = H - padT - padB;
+  const max = 10;
+  const y = v => padT + ih - (v / max) * ih;
+  let g = '';
+  /* gridlines (recessive) + ticks */
+  for (let v = 0; v <= max; v += 2) {
+    g += '<line x1="' + padL + '" y1="' + y(v) + '" x2="' + (W - 12) + '" y2="' + y(v) + '" stroke="var(--grid)" stroke-width="1"/>';
+    g += '<text x="' + (padL - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end" font-size="11" fill="var(--muted)">' + v + '</text>';
+  }
+  const n = data.length, slot = iw / n, bw = Math.min(34, slot * 0.55);
+  data.forEach((d, i) => {
+    const x = padL + slot * i + (slot - bw) / 2;
+    const top = y(d.v);
+    /* 4px rounded data-end, anchored to baseline; 2px gap via slot spacing */
+    g += '<rect class="bar-hit" data-i="' + i + '" x="' + x + '" y="' + top + '" width="' + bw + '" height="' + (padT + ih - top) + '" rx="4" fill="var(--blue)"/>';
+    /* direct label on last point only (selective) */
+    if (i === n - 1) g += '<text x="' + (x + bw / 2) + '" y="' + (top - 7) + '" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink-2)">' + d.v + '</text>';
+    g += '<text x="' + (padL + slot * i + slot / 2) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' + d.w + '</text>';
+    /* transparent hit target bigger than the mark */
+    g += '<rect class="bar-hit-zone" data-i="' + i + '" x="' + (padL + slot * i) + '" y="' + padT + '" width="' + slot + '" height="' + ih + '" fill="transparent"/>';
+  });
+  g += '<line x1="' + padL + '" y1="' + (padT + ih) + '" x2="' + (W - 12) + '" y2="' + (padT + ih) + '" stroke="var(--muted)" stroke-width="1" opacity=".5"/>';
+  svg.innerHTML = g;
+
+  const tip = document.getElementById('chart-tip');
+  const wrap = document.getElementById('chart-wrap');
+  svg.addEventListener('mousemove', e => {
+    const z = e.target.closest('.bar-hit-zone'); if (!z) { tip.style.opacity = 0; return; }
+    const d = data[+z.dataset.i];
+    tip.innerHTML = '<b>' + d.v + ' fixes released</b><span>' + d.w + ' · Rotary Pune West</span>';
+    const r = wrap.getBoundingClientRect();
+    tip.style.left = Math.min(e.clientX - r.left + 14, r.width - 160) + 'px';
+    tip.style.top = (e.clientY - r.top - 44) + 'px';
+    tip.style.opacity = 1;
+  });
+  svg.addEventListener('mouseleave', () => tip.style.opacity = 0);
+})();
+</script>
+</body>
+</html>
